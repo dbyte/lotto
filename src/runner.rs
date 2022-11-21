@@ -1,4 +1,5 @@
-use std::{process, thread};
+use std::{process, thread, time};
+use std::ops::Div;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
@@ -9,20 +10,28 @@ use crate::core::Guess;
 
 pub struct Runner {
    num_played_games_until_win: usize,
+   start_time: time::Instant,
+   end_time: time::Instant,
    receiver: Option<Receiver<String>>,
 }
 
 impl Runner {
    pub fn new() -> Self {
+      let now = time::Instant::now();
+
       Runner {
          num_played_games_until_win: 0,
+         start_time: now,
+         end_time: now,
          receiver: None,
       }
    }
 
    pub fn run(&mut self, my_series: Vec<u8>, my_superzahl: u8) {
       let max_parallel = thread::available_parallelism().unwrap().get();
-      log::debug!("START games with {} parallel threads.", max_parallel-1);
+
+      // Drop one for the main thread.
+      log::debug!("START games with {} parallel worker threads.", max_parallel-1);
 
       // Create a channel for n:1 thread communication
       let (sender, receiver) = mpsc::channel();
@@ -32,8 +41,11 @@ impl Runner {
       let origin_guess = Guess::new(my_series, my_superzahl, sender);
       self.validate(&origin_guess);
 
-      // Create a vector for thread completion waiting
+      // Create a vector for thread completion handling
       let mut joinhandles = vec![];
+
+      // Start timer
+      self.start_time = time::Instant::now();
 
       // Spawn max. available threads minus main thread.
       for _ in 1..max_parallel {
@@ -84,7 +96,7 @@ impl Runner {
       }
    }
 
-   fn receive_messages(&self) {
+   fn receive_messages(&mut self) {
       // Blocks as long as there is at least 1 active sender.
       // Guard
       if self.receiver.is_none() {
@@ -99,6 +111,7 @@ impl Runner {
          // Emit every received message of the channel, sent by any thread.
          log::info!("{}", msg);
       }
+
       log::debug!("mpsc channel closed. Waiting for worker threads to tear down.");
    }
 
@@ -108,17 +121,28 @@ impl Runner {
 
          // Note: join() is blocking
          let num_games_per_thread = handle.join().unwrap();
-         log::debug!("{:?} closed. Played {} games.", thread_id, num_games_per_thread);
-
          self.num_played_games_until_win += num_games_per_thread;
+
+         log::debug!("{:?} closed. Played {} games.", thread_id, num_games_per_thread);
       }
 
+      self.end_time = time::Instant::now();
       log::debug!("All worker threads deallocated.");
+   }
+
+   fn duration_seconds(&self) -> usize {
+      (self.end_time - self.start_time).as_secs() as usize
+   }
+
+   fn games_per_second(&self) -> usize {
+      self.num_played_games_until_win.div(self.duration_seconds())
    }
 
    fn print_summary(&self) {
       log::info!("{}", "~".repeat(60));
       log::info!("🤘 Summary: Played {} games until win.", self.num_played_games_until_win);
+      log::debug!("Duration: about {:?} seconds.", self.duration_seconds());
+      log::debug!("Games per second: {:?}.", self.games_per_second());
       log::info!("{}", "~".repeat(60));
    }
 }
