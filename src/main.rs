@@ -1,6 +1,6 @@
 use std::env;
 
-use lotto::runner;
+use lotto::runner::Runner;
 
 fn main() {
    env::set_var("RUST_LOG", "DEBUG");
@@ -11,5 +11,5 @@ fn main() {
    let my_series: Vec<u8> = vec![1, 45, 37, 22, 19, 36];
    let my_superzahl: u8 = 13;
 
-   runner::run(my_series, my_superzahl);
+   Runner::new().run(my_series, my_superzahl);
 }
