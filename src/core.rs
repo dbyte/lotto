@@ -1,7 +1,8 @@
+use std::{thread, time};
 use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::thread;
+use std::time::Duration;
 
 use rand::Rng;
 
@@ -13,6 +14,7 @@ pub static HAS_WON: AtomicBool = AtomicBool::new(false);
 struct Outcome {
    single_game: Vec<u8>,
    num_tries: usize,
+   last_poll: time::Instant,
 }
 
 impl Outcome {
@@ -20,6 +22,27 @@ impl Outcome {
       Outcome {
          single_game: vec![0; max_pulls],
          num_tries: 0,
+         last_poll: time::Instant::now(),
+      }
+   }
+
+   fn extract_single_game_series(&self) -> &[u8] {
+      &self.single_game[..&self.single_game.len() - 1]
+   }
+
+   fn extract_single_game_superzahl(&self) -> &u8 {
+      &self.single_game[self.single_game.len() - 1]
+   }
+
+   fn publish(&mut self, sender: &mpsc::Sender<String>) {
+      let now = time::Instant::now();
+      let diff = now - self.last_poll;
+
+      if diff > Duration::from_secs(3) {
+         sender.send(format!("{:?} running: {} iterations",
+                             thread::current().id(),
+                             self.num_tries)).unwrap();
+         self.last_poll = now;
       }
    }
 }
@@ -29,15 +52,15 @@ pub struct Guess {
    // This struct is expected to be immutable.
    pub my_series: Vec<u8>,
    pub my_superzahl: u8,
-   pub tx: mpsc::Sender<String>,
+   pub sender: mpsc::Sender<String>,
 }
 
 impl Guess {
-   pub fn new(series: Vec<u8>, superzahl: u8, tx: mpsc::Sender<String>) -> Self {
+   pub fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
       Guess {
          my_series: series, // Example: vec![1, 45, 38, 5, 23, 19]
          my_superzahl: superzahl,
-         tx,
+         sender,
       }
    }
 
@@ -78,56 +101,55 @@ impl Guess {
       Ok(())
    }
 
-   pub fn run_games_until_win(&self) {
+   pub fn run_games_until_win(&self) -> usize {
       let mut outcome = Outcome::new(self.max_pulls());
-      let mut pulled_series: &[u8];
-      let mut pulled_superzahl: &u8;
-      let mut i: usize = 0;
 
       loop {
-         if self.is_finished(&outcome) { break; }
-
+         if self.has_finished() { break; }
          self.run_single_game(&mut outcome);
+
          outcome.num_tries += 1;
-         i += 1;
+         outcome.publish(&self.sender);
 
-         pulled_series = &outcome.single_game[..self.max_pulls() - 1];
-
-         if i % 20_000_000 == 0 {
-            self.tx.send(outcome.num_tries.to_string()).unwrap();
-            i = 0;
-         }
-
-         if self.my_series_contains_all_of(pulled_series) {
-            pulled_superzahl = outcome.single_game.last().unwrap();
-
-            if self.my_superzahl != *pulled_superzahl {
+         if self.my_series_contains_all_of(outcome.extract_single_game_series()) {
+            if self.my_superzahl != *outcome.extract_single_game_superzahl() {
                // The series is matching but Superzahl is not.
                continue;
             }
 
-            log::info!("🏖 You won! 🍀 {:?} -- Superzahl: {}",
-               pulled_series, pulled_superzahl);
-
-            log::info!("{:?} pulled your guess after {} games.",
-               thread::current().id(), outcome.num_tries);
-
-            HAS_WON.store(true, Ordering::SeqCst);
+            // Player wins!
+            self.on_win(&outcome);
          }
       }
+
+      outcome.num_tries
    }
 
-   fn is_finished(&self, outcome: &Outcome) -> bool {
+   fn on_win(&self, outcome: &Outcome) {
+      // Usually called just one time per guess and only for the thread
+      // which solved the game. However, it's not guaranteed - especially
+      // if there are less than 5 numbers in the guessed series. In other words,
+      // multiple threads may solve the guess at the same time.
+      self.sender.send("~".repeat(60)).unwrap();
+
+      self.sender.send(format!(
+         "🏖 You won! 🍀 {:?} -- Superzahl: {}",
+         outcome.extract_single_game_series(),
+         outcome.extract_single_game_superzahl())).unwrap();
+
+      self.sender.send(format!(
+         "🏖 {:?} pulled your guess after {} games.",
+         thread::current().id(), outcome.num_tries)).unwrap();
+
+      self.sender.send("~".repeat(60)).unwrap();
+
+      HAS_WON.store(true, Ordering::SeqCst);
+   }
+
+   fn has_finished(&self) -> bool {
       if !HAS_WON.load(Ordering::SeqCst) {
          return false;
       }
-
-      self.tx.send(format!(
-         "{:?} played {} games.",
-         thread::current().id(),
-         outcome.num_tries))
-         .unwrap();
-
       true
    }
 

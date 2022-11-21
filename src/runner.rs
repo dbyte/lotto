@@ -2,15 +2,17 @@ use std::{process, thread};
 use std::sync::mpsc;
 use std::thread::JoinHandle;
 
+use log;
+
 use crate::core::Guess;
 
 pub fn run(my_series: Vec<u8>, my_superzahl: u8) {
    let max_parallel = thread::available_parallelism().unwrap().get();
-   log::info!("START games with {} parallel threads.", max_parallel-1);
+   log::debug!("START games with {} parallel threads.", max_parallel-1);
 
-   let (tx, rx) = mpsc::channel();
+   let (sender, receiver) = mpsc::channel();
 
-   let guess = Guess::new(my_series, my_superzahl, tx);
+   let guess = Guess::new(my_series, my_superzahl, sender);
    validate(&guess);
 
    let mut handles = Vec::new();
@@ -21,33 +23,49 @@ pub fn run(my_series: Vec<u8>, my_superzahl: u8) {
 
       let handle = thread::spawn(move || {
          // Run games until player wins (or a different thread solved the task).
-         // Blocking until player wins:
-         guess.run_games_until_win();
+         // fn runs until player has won in this or in other threads:
+         return guess.run_games_until_win();
       });
 
       handles.push(handle)
    }
 
-   // Explicitly drop guess.tx instance before calling receive_and_wait(),
-   // otherwise the channel never gets closed which would lead to endless
+   // Important: Explicitly drop guess.sender instance before calling receive_and_wait(),
+   // otherwise the async channel never gets closed which would lead to an endless
    // receiver loop there.
-   drop(guess.tx);
+   drop(guess.sender);
 
-   receive_and_wait(rx, handles);
+   receive_messages(receiver);
+   let overall_num_games = collect_results(handles);
+
+   log::info!("{}", "~".repeat(60));
+   log::info!("🤘 Summary: Played {} games until win.", overall_num_games);
+   log::info!("{}", "~".repeat(60));
 }
 
-fn receive_and_wait(receiver: mpsc::Receiver<String>, joinhandles: Vec<JoinHandle<()>>) {
-   // Wait for signals.
+fn receive_messages(receiver: mpsc::Receiver<String>) {
+   // Wait for downstream messages of the async mpsc channel.
    for received in receiver {
       let msg = received;
-      // Emit every received message of the channel
+      // Emit every received message of the channel, sent by any thread.
       log::info!("{msg}");
    }
-   log::info!("mpsc channel closed.");
+   log::debug!("mpsc channel closed. Waiting for worker threads to tear down.");
+}
 
-   for handle in joinhandles {
-      handle.join().unwrap();
+fn collect_results(handles: Vec<JoinHandle<usize>>) -> usize {
+   let mut overall_num_games = 0;
+
+   for handle in handles {
+      let thread_id = handle.thread().id();
+      // Note: join() is blocking
+      let num_games = handle.join().unwrap();
+      log::debug!("{:?} closed. Played {} games.", thread_id, num_games);
+      overall_num_games += num_games
    }
+
+   log::debug!("All worker threads deallocated.");
+   overall_num_games
 }
 
 fn validate(guess: &Guess) {
