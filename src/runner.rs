@@ -53,6 +53,10 @@ impl Runner {
       // lead to an endless receiver loop there.
       drop(origin_guess.sender);
 
+      // Signal OS that it may schedule other threads on the CPU instead of this
+      // main thread. Nearly doubles game performance (at least on macOS arm64).
+      thread::yield_now();
+
       // Stay tuned for worker thread messages
       self.receive_messages();
 
@@ -82,7 +86,6 @@ impl Runner {
 
    fn receive_messages(&self) {
       // Blocks as long as there is at least 1 active sender.
-
       // Guard
       if self.receiver.is_none() {
          panic!("Channel-receiver not initialized. Sent Messages from worker \
