@@ -5,7 +5,6 @@ use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 
 use log;
-
 use crate::core::Guess;
 
 pub struct Runner {
@@ -27,19 +26,18 @@ impl Runner {
       }
    }
 
-   pub fn run(&mut self, my_series: Vec<u8>, my_superzahl: u8) {
-      let max_parallel = thread::available_parallelism().unwrap().get();
-
-      // Drop one for the main thread.
-      log::debug!("START games with {} parallel worker threads.", max_parallel-1);
-
+   pub fn run(&mut self) {
       // Create a channel for n:1 thread communication
       let (sender, receiver) = mpsc::channel();
       self.receiver = Some(receiver);
 
       // Create the main guess game
-      let origin_guess = Guess::new(my_series, my_superzahl, sender);
+      let origin_guess = Guess::create_from_user_input(sender);
       self.validate(&origin_guess);
+
+      let max_parallel = thread::available_parallelism().unwrap().get();
+      // Drop one for the main thread.
+      log::debug!("START games with {} parallel worker threads.", max_parallel-1);
 
       // Create a vector for thread completion handling
       let mut joinhandles = vec![];
@@ -84,13 +82,11 @@ impl Runner {
          }
 
          Err(messages) => {
-            log::warn!("Please try again. Your guess was: {:?} -- Superzahl: {}",
-            origin_guess.my_series, origin_guess.my_superzahl);
-
             for message in messages {
                log::error!("{}", message);
             }
-
+            log::warn!("Please try again. Your guess was: {:?} -- Superzahl: {}",
+            origin_guess.my_series, origin_guess.my_superzahl);
             process::exit(1);
          }
       }

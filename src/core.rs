@@ -1,4 +1,5 @@
 use std::{thread, time};
+use std::io::{stdin, stdout, Write};
 use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -6,8 +7,8 @@ use std::time::Duration;
 
 use rand::Rng;
 
-const MAX_SERIES_LENGTH: usize = 6;
-const SERIES_NUMBER_RANGE: RangeInclusive<u8> = 1..=49;
+pub const MAX_SERIES_LENGTH: usize = 6;
+pub const SERIES_NUMBER_RANGE: RangeInclusive<u8> = 1..=49;
 
 pub static HAS_WON: AtomicBool = AtomicBool::new(false);
 
@@ -56,12 +57,50 @@ pub struct Guess {
 }
 
 impl Guess {
-   pub fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
+   fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
       Guess {
          my_series: series, // Example: vec![1, 45, 38, 5, 23, 19]
          my_superzahl: superzahl,
          sender,
       }
+   }
+
+   pub fn create_from_user_input(sender: mpsc::Sender<String>) -> Guess {
+      // Factory.
+      // 1. User provides the series guess
+      print!("Enter your guess series (max. {} numbers between {} and {}, separated by commas): ",
+             MAX_SERIES_LENGTH,
+             SERIES_NUMBER_RANGE.start(),
+             SERIES_NUMBER_RANGE.end());
+      stdout().flush().unwrap();
+
+      let mut input_guess_series = String::new();
+      stdin().read_line(&mut input_guess_series).unwrap();
+
+      let my_series: Vec<u8> = input_guess_series
+         .chars()
+         .filter(|c| !c.is_whitespace())
+         .collect::<String>()
+         .split(',')
+         .filter_map(|num_as_str| num_as_str.parse().ok())
+         .collect();
+
+      // 2. User provides the Superzahl guess
+      print!("Enter your Superzahl between {} and {}: ",
+             SERIES_NUMBER_RANGE.start(),
+             SERIES_NUMBER_RANGE.end());
+      stdout().flush().unwrap();
+
+      let mut input_superzahl = String::new();
+      stdin().read_line(&mut input_superzahl).unwrap();
+
+      let my_superzahl: u8 = input_superzahl
+         .chars()
+         .filter(|c| !c.is_whitespace())
+         .collect::<String>()
+         .parse().unwrap_or_default();
+
+      return Guess::new(my_series, my_superzahl, sender);
    }
 
    pub fn validate(&self) -> Result<(), Vec<String>> {
