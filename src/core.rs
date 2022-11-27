@@ -20,7 +20,7 @@ struct Outcome {
 
 impl Outcome {
    fn new(max_pulls: usize) -> Self {
-      Outcome {
+      Self {
          single_game: vec![0; max_pulls],
          num_tries: 0,
          last_poll: time::Instant::now(),
@@ -58,7 +58,7 @@ pub struct Guess {
 
 impl Guess {
    fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
-      Guess {
+      Self {
          my_series: series, // Example: vec![1, 45, 38, 5, 23, 19]
          my_superzahl: superzahl,
          sender,
@@ -78,11 +78,11 @@ impl Guess {
       stdin().read_line(&mut input_guess_series).unwrap();
 
       let my_series: Vec<u8> = input_guess_series
-         .chars()
-         .filter(|c| !c.is_whitespace())
-         .collect::<String>()
          .split(',')
-         .filter_map(|num_as_str| num_as_str.parse().ok())
+         .map(|s| s.matches(char::is_numeric)
+            .fold("".to_string(), |acc: String, nxt: &str| acc + nxt)
+            .parse().unwrap_or_default()
+         )
          .collect();
 
       // 2. User provides the Superzahl guess
@@ -95,18 +95,17 @@ impl Guess {
       stdin().read_line(&mut input_superzahl).unwrap();
 
       let my_superzahl: u8 = input_superzahl
-         .chars()
-         .filter(|c| !c.is_whitespace())
-         .collect::<String>()
+         .matches(char::is_numeric)
+         .fold("".to_string(), |acc: String, nxt: &str| acc + nxt)
          .parse().unwrap_or_default();
 
-      return Guess::new(my_series, my_superzahl, sender);
+      Guess::new(my_series, my_superzahl, sender)
    }
 
    pub fn validate(&self) -> Result<(), Vec<String>> {
       let mut messages = Vec::<String>::new();
 
-      if self.my_series.len() == 0 {
+      if self.my_series.is_empty() {
          messages.push("Your guess series has no numbers, which is not allowed.".to_string());
       }
 
@@ -116,7 +115,7 @@ impl Guess {
             self.my_series.len(), MAX_SERIES_LENGTH));
       }
 
-      if self.my_series.iter().any(|item| !SERIES_NUMBER_RANGE.contains(&item)) {
+      if self.my_series.iter().any(|item| !SERIES_NUMBER_RANGE.contains(item)) {
          messages.push(format!(
             "Each number of your guess series must be in a range from {} to {}.",
             SERIES_NUMBER_RANGE.start(), SERIES_NUMBER_RANGE.end()));
@@ -205,7 +204,7 @@ impl Guess {
       let pulled_number: u8 = rand::thread_rng().gen_range(SERIES_NUMBER_RANGE);
 
       if !result.single_game.contains(&pulled_number) {
-         return pulled_number;
+         pulled_number
       } else {
          self.pull_single_number(result)
       }
@@ -217,6 +216,6 @@ impl Guess {
    }
 
    fn my_series_contains_all_of(&self, slice: &[u8]) -> bool {
-      slice.iter().all(|item| self.my_series.contains(&item))
+      slice.iter().all(|item| self.my_series.contains(item))
    }
 }

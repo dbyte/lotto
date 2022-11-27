@@ -1,10 +1,10 @@
 use std::{process, thread, time};
-use std::ops::Div;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 
 use log;
+
 use crate::core::Guess;
 
 pub struct Runner {
@@ -14,18 +14,19 @@ pub struct Runner {
    receiver: Option<Receiver<String>>,
 }
 
-impl Runner {
-   pub fn new() -> Self {
+impl Default for Runner {
+   fn default() -> Self {
       let now = time::Instant::now();
-
-      Runner {
+      Self {
          num_played_games_until_win: 0,
          start_time: now,
          end_time: now,
          receiver: None,
       }
    }
+}
 
+impl Runner {
    pub fn run(&mut self) {
       // Create a channel for n:1 thread communication
       let (sender, receiver) = mpsc::channel();
@@ -52,7 +53,7 @@ impl Runner {
          let handle = thread::spawn(move || {
             // Run games until player wins (or a different thread solved the task).
             // fn runs until player has won in this or in other threads:
-            return guess.run_games_until_win();
+            guess.run_games_until_win()
          });
 
          joinhandles.push(handle)
@@ -131,7 +132,9 @@ impl Runner {
    }
 
    fn games_per_second(&self) -> usize {
-      self.num_played_games_until_win.div(self.duration_seconds())
+      self.num_played_games_until_win
+         .checked_div(self.duration_seconds())
+         .unwrap_or_default()
    }
 
    fn print_summary(&self) {
