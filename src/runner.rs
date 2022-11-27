@@ -1,4 +1,4 @@
-use std::{process, thread, time};
+use std::{thread, time};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use log;
 
 use crate::core::Guess;
+use crate::rules;
 
 pub struct Runner {
    num_played_games_until_win: usize,
@@ -27,14 +28,16 @@ impl Default for Runner {
 }
 
 impl Runner {
-   pub fn run(&mut self) {
+   pub fn run(&mut self) -> Result<(), rules::InvalidGuessError> {
+      // Parse & validate user's guess. Return early on invalid guess.
+      let (series, superzahl) = rules::UserInput::create().parse()?;
+
       // Create a channel for n:1 thread communication
       let (sender, receiver) = mpsc::channel();
       self.receiver = Some(receiver);
 
       // Create the main guess game
-      let origin_guess = Guess::create_from_user_input(sender);
-      self.validate(&origin_guess);
+      let origin_guess = Guess::new(series, superzahl, sender);
 
       let max_parallel = thread::available_parallelism().unwrap().get();
       // Drop one for the main thread.
@@ -73,24 +76,8 @@ impl Runner {
 
       self.collect_results(joinhandles);
       self.print_summary();
-   }
 
-   fn validate(&self, origin_guess: &Guess) {
-      match origin_guess.validate() {
-         Ok(()) => {
-            log::info!("Your guess: {:?} -- Superzahl: {}",
-               origin_guess.my_series, origin_guess.my_superzahl);
-         }
-
-         Err(messages) => {
-            for message in messages {
-               log::error!("{}", message);
-            }
-            log::warn!("Please try again. Your guess was: {:?} -- Superzahl: {}",
-            origin_guess.my_series, origin_guess.my_superzahl);
-            process::exit(1);
-         }
-      }
+      Ok(())
    }
 
    fn receive_messages(&mut self) {
@@ -114,10 +101,10 @@ impl Runner {
 
    fn collect_results(&mut self, handles: Vec<JoinHandle<usize>>) {
       for handle in handles {
-         let thread_id = handle.thread().id();
+         let thread_id = &handle.thread().id();
 
          // Note: join() is blocking
-         let num_games_per_thread = handle.join().unwrap();
+         let num_games_per_thread = &handle.join().unwrap();
          self.num_played_games_until_win += num_games_per_thread;
 
          log::debug!("{:?} closed. Played {} games.", thread_id, num_games_per_thread);

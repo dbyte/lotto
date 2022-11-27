@@ -5,5 +5,8 @@ use lotto::runner::Runner;
 fn main() {
    env::set_var("RUST_LOG", "DEBUG");
    env_logger::init();
-   Runner::default().run();
+
+   loop {
+      if Runner::default().run().is_ok() { break; }
+   }
 }

@@ -1,14 +1,11 @@
 use std::{thread, time};
-use std::io::{stdin, stdout, Write};
-use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
 use rand::Rng;
 
-pub const MAX_SERIES_LENGTH: usize = 6;
-pub const SERIES_NUMBER_RANGE: RangeInclusive<u8> = 1..=49;
+use crate::rules::SERIES_NUMBER_RANGE;
 
 pub static HAS_WON: AtomicBool = AtomicBool::new(false);
 
@@ -57,86 +54,12 @@ pub struct Guess {
 }
 
 impl Guess {
-   fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
+   pub fn new(series: Vec<u8>, superzahl: u8, sender: mpsc::Sender<String>) -> Self {
       Self {
          my_series: series, // Example: vec![1, 45, 38, 5, 23, 19]
          my_superzahl: superzahl,
          sender,
       }
-   }
-
-   pub fn create_from_user_input(sender: mpsc::Sender<String>) -> Guess {
-      // Factory.
-      // 1. User provides the series guess
-      print!("Enter your guess series (max. {} numbers between {} and {}, separated by commas): ",
-             MAX_SERIES_LENGTH,
-             SERIES_NUMBER_RANGE.start(),
-             SERIES_NUMBER_RANGE.end());
-      stdout().flush().unwrap();
-
-      let mut input_guess_series = String::new();
-      stdin().read_line(&mut input_guess_series).unwrap();
-
-      let my_series: Vec<u8> = input_guess_series
-         .split(',')
-         .map(|s| s.matches(char::is_numeric)
-            .fold("".to_string(), |acc: String, nxt: &str| acc + nxt)
-            .parse().unwrap_or_default()
-         )
-         .collect();
-
-      // 2. User provides the Superzahl guess
-      print!("Enter your Superzahl between {} and {}: ",
-             SERIES_NUMBER_RANGE.start(),
-             SERIES_NUMBER_RANGE.end());
-      stdout().flush().unwrap();
-
-      let mut input_superzahl = String::new();
-      stdin().read_line(&mut input_superzahl).unwrap();
-
-      let my_superzahl: u8 = input_superzahl
-         .matches(char::is_numeric)
-         .fold("".to_string(), |acc: String, nxt: &str| acc + nxt)
-         .parse().unwrap_or_default();
-
-      Guess::new(my_series, my_superzahl, sender)
-   }
-
-   pub fn validate(&self) -> Result<(), Vec<String>> {
-      let mut messages = Vec::<String>::new();
-
-      if self.my_series.is_empty() {
-         messages.push("Your guess series has no numbers, which is not allowed.".to_string());
-      }
-
-      if self.my_series.len() > MAX_SERIES_LENGTH {
-         messages.push(format!(
-            "Your guess series has {} numbers, which is not allowed. Maximum allowed: {}.",
-            self.my_series.len(), MAX_SERIES_LENGTH));
-      }
-
-      if self.my_series.iter().any(|item| !SERIES_NUMBER_RANGE.contains(item)) {
-         messages.push(format!(
-            "Each number of your guess series must be in a range from {} to {}.",
-            SERIES_NUMBER_RANGE.start(), SERIES_NUMBER_RANGE.end()));
-      }
-
-      if !SERIES_NUMBER_RANGE.contains(&self.my_superzahl) {
-         messages.push(format!(
-            "Your Superzahl must be in a range from {} to {}.",
-            SERIES_NUMBER_RANGE.start(), SERIES_NUMBER_RANGE.end()));
-      }
-
-      if self.my_series.contains(&self.my_superzahl) {
-         messages.push(format!(
-            "Your Superzahl {} must not be contained in your guess series.", self.my_superzahl));
-      }
-
-      if !messages.is_empty() {
-         return Err(messages);
-      }
-
-      Ok(())
    }
 
    pub fn run_games_until_win(&self) -> usize {
@@ -195,18 +118,18 @@ impl Guess {
       result.single_game.fill_with(Default::default);
 
       for i in 0..self.max_pulls() {
-         let pulled_number = self.pull_single_number(result);
+         let pulled_number = Self::pull_single_number(result);
          result.single_game[i] = pulled_number;
       }
    }
 
-   fn pull_single_number(&self, result: &mut Outcome) -> u8 {
+   fn pull_single_number(result: &mut Outcome) -> u8 {
       let pulled_number: u8 = rand::thread_rng().gen_range(SERIES_NUMBER_RANGE);
 
       if !result.single_game.contains(&pulled_number) {
          pulled_number
       } else {
-         self.pull_single_number(result)
+         Self::pull_single_number(result)
       }
    }
 
