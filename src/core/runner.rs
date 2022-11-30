@@ -5,8 +5,8 @@ use std::thread::JoinHandle;
 
 use log;
 
-use crate::core::Guess;
-use crate::rules;
+use super::game::Guess;
+use super::rules;
 
 pub struct Runner {
    num_played_games_until_win: usize,
@@ -39,9 +39,9 @@ impl Runner {
       // Create the main guess game
       let origin_guess = Guess::new(series, superzahl, sender);
 
-      let max_parallel = thread::available_parallelism().unwrap().get();
+      let num_threads = 32; // thread::available_parallelism().unwrap().get();
       // Drop one for the main thread.
-      log::debug!("START games with {} parallel worker threads.", max_parallel-1);
+      log::debug!("START games with {} parallel worker threads.", num_threads-1);
 
       // Create a vector for thread completion handling
       let mut joinhandles = vec![];
@@ -50,7 +50,7 @@ impl Runner {
       self.start_time = time::Instant::now();
 
       // Spawn max. available threads minus main thread.
-      for _ in 1..max_parallel {
+      for _ in 1..num_threads {
          let guess = origin_guess.clone();
 
          let handle = thread::spawn(move || {

@@ -1,6 +1,8 @@
 use std::env;
 
-use lotto::runner::Runner;
+use crate::core::runner::Runner;
+
+mod core;
 
 fn main() {
    env::set_var("RUST_LOG", "DEBUG");
