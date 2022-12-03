@@ -74,12 +74,10 @@ impl Guess {
          outcome.num_tries += 1;
          outcome.publish(&self.sender);
 
-         if self.my_series_contains_all_of(outcome.extract_single_game_series()) {
-            if &self.my_superzahl != outcome.extract_single_game_superzahl() {
-               // The series is matching but Superzahl is not.
-               continue;
-            }
+         // Check for matching Superzahl first since it's cheap
+         if &self.my_superzahl != outcome.extract_single_game_superzahl() { continue; }
 
+         if self.my_series_contains_all_of(outcome.extract_single_game_series()) {
             // Player wins!
             self.on_win(&outcome);
          }
