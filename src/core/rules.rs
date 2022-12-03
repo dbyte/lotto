@@ -87,7 +87,7 @@ impl UserInput {
       let mut messages = Vec::<String>::new();
 
       let converted_series: [u8; SERIES_LENGTH] = series.try_into().unwrap_or_else(|_| {
-         messages.push("Your guess series is invalid and not be processed.".to_string());
+         messages.push("Your guess series is invalid and cannot be processed.".to_string());
          [0; SERIES_LENGTH]
       });
 

@@ -25,11 +25,11 @@ impl Outcome {
    }
 
    fn extract_single_game_series(&self) -> &[u8] {
-      &self.single_game[..self.single_game.len() - 1]
+      &self.single_game[..SERIES_LENGTH]
    }
 
    fn extract_single_game_superzahl(&self) -> &u8 {
-      &self.single_game[self.single_game.len() - 1]
+      &self.single_game[SERIES_LENGTH]
    }
 
    fn publish(&mut self, sender: &mpsc::Sender<String>) {
@@ -75,7 +75,7 @@ impl Guess {
          outcome.publish(&self.sender);
 
          if self.my_series_contains_all_of(outcome.extract_single_game_series()) {
-            if self.my_superzahl != *outcome.extract_single_game_superzahl() {
+            if &self.my_superzahl != outcome.extract_single_game_superzahl() {
                // The series is matching but Superzahl is not.
                continue;
             }
@@ -119,25 +119,19 @@ impl Guess {
    fn run_single_game(&self, result: &mut Outcome) {
       result.single_game.fill_with(Default::default);
 
-      for i in 0..self.max_pulls() {
-         let pulled_number = Self::pull_single_number(result);
-         result.single_game[i] = pulled_number;
-      }
+      (0..SERIES_LENGTH + 1).for_each({
+         |i| result.single_game[i] = Self::pull_single_number(result)
+      });
    }
 
    fn pull_single_number(result: &mut Outcome) -> u8 {
       let pulled_number: u8 = rand::thread_rng().gen_range(SERIES_NUMBER_RANGE);
 
-      if !result.single_game.contains(&pulled_number) {
+      if !&result.single_game.contains(&pulled_number) {
          pulled_number
       } else {
          Self::pull_single_number(result)
       }
-   }
-
-   fn max_pulls(&self) -> usize {
-      // + 1 designates the Superzahl.
-      self.my_series.len() + 1
    }
 
    fn my_series_contains_all_of(&self, slice: &[u8]) -> bool {
