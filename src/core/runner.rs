@@ -39,7 +39,9 @@ impl Runner {
       // Create the main guess game
       let origin_guess = Guess::new(series, superzahl, sender);
 
-      let num_threads = 32; // thread::available_parallelism().unwrap().get();
+      let num_threads = rules::MAX_THREADS;
+      // let num_thread = thread::available_parallelism().unwrap().get();
+      
       // Drop one for the main thread.
       log::debug!("START games with {} parallel worker threads.", num_threads-1);
 

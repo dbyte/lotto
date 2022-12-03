@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 
 pub const SERIES_LENGTH: usize = 6;
 pub const SERIES_NUMBER_RANGE: RangeInclusive<u8> = 1..=49;
+pub const MAX_THREADS: u16 = 32;
 
 #[derive(Debug)]
 pub struct InvalidGuessError;
