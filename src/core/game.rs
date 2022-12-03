@@ -5,12 +5,12 @@ use std::time::Duration;
 
 use rand::Rng;
 
-use super::rules::{MAX_SERIES_LENGTH, SERIES_NUMBER_RANGE};
+use super::rules::{SERIES_LENGTH, SERIES_NUMBER_RANGE};
 
 pub static HAS_WON: AtomicBool = AtomicBool::new(false);
 
 struct Outcome {
-   single_game: [u8; MAX_SERIES_LENGTH + 1],
+   single_game: [u8; SERIES_LENGTH + 1],
    num_tries: usize,
    last_poll: time::Instant,
 }
@@ -18,7 +18,7 @@ struct Outcome {
 impl Outcome {
    fn new() -> Self {
       Self {
-         single_game: [0; MAX_SERIES_LENGTH + 1],
+         single_game: [0; SERIES_LENGTH + 1],
          num_tries: 0,
          last_poll: time::Instant::now(),
       }
@@ -48,13 +48,13 @@ impl Outcome {
 #[derive(Clone)]
 pub struct Guess {
    // This struct is expected to be immutable.
-   pub my_series: [u8; MAX_SERIES_LENGTH],
+   pub my_series: [u8; SERIES_LENGTH],
    pub my_superzahl: u8,
    pub sender: mpsc::Sender<String>,
 }
 
 impl Guess {
-   pub fn new(series: [u8; MAX_SERIES_LENGTH],
+   pub fn new(series: [u8; SERIES_LENGTH],
               superzahl: u8,
               sender: mpsc::Sender<String>) -> Self {
       Self {
