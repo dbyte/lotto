@@ -53,7 +53,7 @@ impl UserInput {
       Self::new(input_guess_series, input_superzahl)
    }
 
-   pub fn parse(&self) -> Result<(Vec<u8>, u8), InvalidGuessError> {
+   pub fn parse(&self) -> Result<([u8; MAX_SERIES_LENGTH], u8), InvalidGuessError> {
       let parsed_series: Vec<u8> = self.series
          .trim_matches(|c: char| c == ',' || c.is_whitespace())
          .split(',')
@@ -71,7 +71,7 @@ impl UserInput {
       log::info!("Your guess: {:?} -- Superzahl: {}", parsed_series, parsed_superzahl);
 
       match Self::validate(&parsed_series, &parsed_superzahl) {
-         Ok(()) => Ok((parsed_series, parsed_superzahl)),
+         Ok(converted_series) => Ok((converted_series, parsed_superzahl)),
 
          Err(messages) => {
             for message in &messages {
@@ -83,16 +83,21 @@ impl UserInput {
       }
    }
 
-   fn validate(series: &[u8], superzahl: &u8) -> Result<(), Vec<String>> {
+   fn validate(series: &[u8], superzahl: &u8) -> Result<([u8; MAX_SERIES_LENGTH]), Vec<String>> {
       let mut messages = Vec::<String>::new();
+
+      let converted_series: [u8; MAX_SERIES_LENGTH] = series.try_into().unwrap_or_else(|_| {
+         messages.push("Your guess series is invalid and not be processed.".to_string());
+         [0; MAX_SERIES_LENGTH]
+      });
 
       if series.is_empty() {
          messages.push("Your guess series has no numbers, which is not allowed.".to_string());
       }
 
-      if series.len() > MAX_SERIES_LENGTH {
+      if series.len() != MAX_SERIES_LENGTH {
          messages.push(format!(
-            "Your guess series has {} numbers, which is not allowed. Maximum allowed: {}.",
+            "Your guess series has {} numbers, which is not allowed. Expected {} numbers.",
             series.len(), MAX_SERIES_LENGTH));
       }
 
@@ -121,6 +126,6 @@ impl UserInput {
          return Err(messages);
       }
 
-      Ok(())
+      Ok(converted_series)
    }
 }
