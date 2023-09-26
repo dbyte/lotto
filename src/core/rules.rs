@@ -84,7 +84,7 @@ impl UserInput {
       }
    }
 
-   fn validate(series: &[u8], superzahl: &u8) -> Result<([u8; SERIES_LENGTH]), Vec<String>> {
+   fn validate(series: &[u8], superzahl: &u8) -> Result<[u8; SERIES_LENGTH], Vec<String>> {
       let mut messages = Vec::<String>::new();
 
       let converted_series: [u8; SERIES_LENGTH] = series.try_into().unwrap_or_else(|_| {
